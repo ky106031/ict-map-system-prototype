@@ -4,10 +4,10 @@ import cytoscape from "cytoscape";
 
 const LAYERS = [
   { id: "LAYER_ICT", label: "ICT機器", layer: "ICT", x: 100, y: 200, firstLevel: "1", maxLevel: 3 },
-  { id: "LAYER_FUNCTION", label: "ICTの機能", layer: "FUNCTION", x: 330, y: 200, firstLevel: "1", maxLevel: 3 },
-  { id: "LAYER_OPPORTUNITY", label: "教育機会", layer: "OPPORTUNITY", x: 560, y: 200, firstLevel: "2", maxLevel: 3 },
-  { id: "LAYER_EFFECT", label: "教育効果", layer: "EFFECT", x: 790, y: 200, firstLevel: "2", maxLevel: 3 },
-  { id: "LAYER_UNIT", label: "学年・単元", layer: "UNIT", x: 1020, y: 200, firstLevel: "1", maxLevel: 4 },
+  { id: "LAYER_FUNCTION", label: "ICTの機能", layer: "FUNCTION", x: 410, y: 200, firstLevel: "1", maxLevel: 3 },
+  { id: "LAYER_OPPORTUNITY", label: "教育機会", layer: "OPPORTUNITY", x: 720, y: 200, firstLevel: "2", maxLevel: 3 },
+  { id: "LAYER_EFFECT", label: "教育効果", layer: "EFFECT", x: 1030, y: 200, firstLevel: "2", maxLevel: 3 },
+  { id: "LAYER_UNIT", label: "学年・単元", layer: "UNIT", x: 1340, y: 200, firstLevel: "1", maxLevel: 4 },
 ];
 
 const LAYER_EDGES = [
@@ -27,10 +27,18 @@ const LAYER_COLORS = {
 
 const LAYER_X = {
   ICT: 120,
-  FUNCTION: 360,
-  OPPORTUNITY: 600,
-  EFFECT: 840,
-  UNIT: 1080,
+  FUNCTION: 820,
+  OPPORTUNITY: 1520,
+  EFFECT: 2220,
+  UNIT: 2920,
+};
+
+const ALL_GRAPH_X = {
+  ICT: 120,
+  FUNCTION: 3120,
+  OPPORTUNITY: 6120,
+  EFFECT: 9120,
+  UNIT: 12120,
 };
 
 function App() {
@@ -41,6 +49,7 @@ function App() {
   const [edges, setEdges] = useState([]);
   const [papers, setPapers] = useState([]);
 
+  const [viewMode, setViewMode] = useState("initial");
   const [selectedSearchNodeIds, setSelectedSearchNodeIds] = useState([]);
   const [selectedPaperIds, setSelectedPaperIds] = useState([]);
 
@@ -254,8 +263,6 @@ function App() {
   ];
 
   const buildSubgraphElements = () => {
-    if (selectedSearchNodeIds.length === 0) return buildLayerElements();
-
     const { nodeIds, relationEdges } = getMultiConditionSubgraph(selectedSearchNodeIds);
     const targetNodes = nodes.filter((n) => nodeIds.includes(n.node_id));
 
@@ -273,7 +280,7 @@ function App() {
 
     Object.entries(grouped).forEach(([layer, layerNodes]) => {
       const x = LAYER_X[layer] ?? 100;
-      const spacingY = 86;
+      const spacingY = 180;
       const startY = 220 - ((layerNodes.length - 1) * spacingY) / 2;
 
       layerNodes.forEach((node, index) => {
@@ -311,8 +318,66 @@ function App() {
     return elements;
   };
 
-  const buildElements = () =>
-    selectedSearchNodeIds.length > 0 ? buildSubgraphElements() : buildLayerElements();
+  const buildAllGraphElements = () => {
+    const relationEdges = edges.filter((e) => e.edge_type === "relation");
+    const elements = [];
+
+    const grouped = {};
+    nodes.forEach((node) => {
+      if (!grouped[node.layer]) grouped[node.layer] = [];
+      grouped[node.layer].push(node);
+    });
+
+    Object.keys(grouped).forEach((layer) => {
+      grouped[layer].sort((a, b) => Number(a.display_order) - Number(b.display_order));
+    });
+
+    Object.entries(grouped).forEach(([layer, layerNodes]) => {
+      const x = ALL_GRAPH_X[layer] ?? 100;
+      const spacingY = 80;
+      const startY = 220 - ((layerNodes.length - 1) * spacingY) / 2;
+
+      layerNodes.forEach((node, index) => {
+        elements.push({
+          group: "nodes",
+          data: {
+            id: node.node_id,
+            label: node.label,
+            layer: node.layer,
+            level: node.level,
+            isAllGraphNode: "true",
+          },
+          position: {
+            x,
+            y: startY + index * spacingY,
+          },
+          classes: "all-graph-node",
+        });
+      });
+    });
+
+    relationEdges.forEach((edge) => {
+      elements.push({
+        group: "edges",
+        data: {
+          id: edge.edge_id,
+          source: edge.source,
+          target: edge.target,
+          paper_id: edge.paper_id,
+          edge_type: edge.edge_type,
+        },
+        classes: "all-graph-edge",
+      });
+    });
+
+    return elements;
+  };
+
+  const buildElements = () => {
+    if (viewMode === "all") return buildAllGraphElements();
+    if (selectedSearchNodeIds.length > 0) return buildSubgraphElements();
+    return buildLayerElements();
+  };
 
   useEffect(() => {
     if (!containerRef.current || nodes.length === 0) return;
@@ -323,7 +388,7 @@ function App() {
       container: containerRef.current,
       elements: buildElements(),
       layout: { name: "preset" },
-      autoungrabify: true,
+      autoungrabify: viewMode !== "all",
       style: [
         {
           selector: "node",
@@ -332,16 +397,17 @@ function App() {
             "text-valign": "center",
             "text-halign": "center",
             shape: "round-rectangle",
-            width: "170px",
-            height: "64px",
-            padding: "12px",
-            "font-size": "15px",
+            width: "230px",
+            height: "100px",
+            padding: "16px",
+            "font-size": "24px",
             "font-weight": "bold",
             color: "#333",
             "border-width": 1.5,
             "border-color": "#999",
             "text-wrap": "wrap",
-            "text-max-width": "210px",
+            "text-max-width": "200px",
+            "text-overflow-wrap": "anywhere",
           },
         },
         { selector: 'node[layer = "ICT"]', style: { "background-color": "#E9DCC9" } },
@@ -354,21 +420,52 @@ function App() {
           style: { "border-width": 4, "border-color": "#222" },
         },
         {
+          selector: ".all-graph-node",
+          style: {
+            label: "data(label)",
+            width: "90px",
+            height: "24px",
+            "font-size": "5px",
+            "font-weight": "bold",
+            "text-wrap": "wrap",
+            "text-max-width": "80px",
+            "text-overflow-wrap": "anywhere",
+            "border-width": 0.6,
+            "border-color": "#777",
+          },
+        },
+        {
           selector: "edge",
           style: {
             width: 2,
             "line-color": "#333",
             "target-arrow-color": "#333",
             "target-arrow-shape": "triangle",
-            "curve-style": "bezier",
+            "curve-style": "straight",
           },
         },
         {
           selector: ".relation-edge",
-          style: { width: 2.4, "line-color": "#222", "target-arrow-color": "#222" },
+          style: {
+            width: 2.2,
+            "line-color": "#222",
+            "target-arrow-color": "#222",
+            "target-arrow-shape": "triangle",
+            "curve-style": "straight",
+          },
+        },
+        {
+          selector: ".all-graph-edge",
+          style: {
+            width: 0.6,
+            "line-color": "rgba(30,30,30,0.35)",
+            "target-arrow-color": "rgba(30,30,30,0.35)",
+            "target-arrow-shape": "none",
+            "curve-style": "straight",
+          },
         },
       ],
-      minZoom: 0.15,
+      minZoom: 0.02,
       maxZoom: 3,
       wheelSensitivity: 0.2,
     });
@@ -390,6 +487,8 @@ function App() {
     cy.on("tap", "node", (event) => {
       const tapped = event.target;
 
+      if (viewMode === "all") return;
+
       if (selectedSearchNodeIds.length === 0 && tapped.data("isLayerNode") === "true") {
         const layerConfig = LAYERS.find((l) => l.id === tapped.id());
         setOverlay({
@@ -402,18 +501,19 @@ function App() {
     });
 
     setTimeout(() => {
-      cy.fit(cy.elements(), 120);
+      cy.fit(cy.elements(), viewMode === "all" ? 10 : 20);
       cy.center();
     }, 0);
 
     return () => cy.destroy();
-  }, [nodes, edges, selectedSearchNodeIds]);
+  }, [nodes, edges, selectedSearchNodeIds, viewMode]);
 
   const handleOptionClick = (option) => {
     const children = nodes.filter((n) => n.parent_id === option.node_id);
 
     if (children.length === 0) {
       setSelectedSearchNodeIds([option.node_id]);
+      setViewMode("search");
       closeOverlay();
       return;
     }
@@ -430,9 +530,18 @@ function App() {
   };
 
   const resetMap = () => {
+    setViewMode("initial");
     setSelectedSearchNodeIds([]);
     setSelectedPaperIds([]);
     closeOverlay();
+  };
+
+  const showAllGraph = () => {
+    setViewMode("all");
+    setSelectedSearchNodeIds([]);
+    setSelectedPaperIds([]);
+    closeOverlay();
+    setSearchPanelOpen(false);
   };
 
   const goBack = () => {
@@ -509,6 +618,7 @@ function App() {
     const targetNodeIds = getAllSelectedConditionNodeIds();
     if (targetNodeIds.length === 0) return;
 
+    setViewMode("search");
     setSelectedSearchNodeIds(targetNodeIds);
     setSelectedPaperIds([]);
     closeOverlay();
@@ -543,7 +653,11 @@ function App() {
           Nodes: {nodes.length} / Edges: {edges.length} / Papers: {papers.length}
         </span>
 
-        {selectedSearchNodeIds.length > 0 && (
+        <button onClick={showAllGraph} style={buttonStyle}>
+          全体表示
+        </button>
+
+        {(selectedSearchNodeIds.length > 0 || viewMode === "all") && (
           <button onClick={resetMap} style={buttonStyle}>
             初期表示に戻る
           </button>
