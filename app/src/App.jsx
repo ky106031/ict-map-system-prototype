@@ -72,21 +72,21 @@ function App() {
   });
 
   useEffect(() => {
-    Papa.parse("/data/nodes.csv", {
+    Papa.parse(`${import.meta.env.BASE_URL}data/nodes.csv`, {
       download: true,
       header: true,
       skipEmptyLines: true,
       complete: (result) => setNodes(result.data),
     });
 
-    Papa.parse("/data/edges.csv", {
+    Papa.parse(`${import.meta.env.BASE_URL}data/edges.csv`, {
       download: true,
       header: true,
       skipEmptyLines: true,
       complete: (result) => setEdges(result.data),
     });
 
-    Papa.parse("/data/papers.csv", {
+    Papa.parse(`${import.meta.env.BASE_URL}data/papers.csv`, {
       download: true,
       header: true,
       skipEmptyLines: true,
