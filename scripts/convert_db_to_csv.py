@@ -9,16 +9,6 @@ OUTPUT_DIR = Path("/Volumes/SSD/MasterThesis/ICTMap_Prototype/csv")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ===== 基本設定 =====
-LAYER_ORDER = {
-    "ICT": 1,
-    "FUNCTION": 2,
-    "OPPORTUNITY": 3,
-    "EFFECT": 4,
-    "UNIT": 5,
-}
-
-
 def is_empty(value) -> bool:
     return pd.isna(value) or str(value).strip() == ""
 
@@ -97,6 +87,14 @@ def get_unit_label(row) -> str:
     return content
 
 
+def make_grade_label(school: str, grade: str) -> str:
+    if not grade:
+        return ""
+
+    grade = grade.replace("年生", "").replace("年", "")
+    return f"{school}{grade}年"
+
+
 # ===== データ読み込み =====
 df = pd.read_excel(DB_PATH)
 
@@ -117,7 +115,7 @@ for _, row in df.iterrows():
         "journal": clean(row.get("学会名", "")),
         "year": clean(row.get("公開年", "")),
         "jstage_url": clean(row.get("URL", "")),
-        })
+    })
 
     # ===== ICT機器 =====
     ict_nodes = {}
@@ -139,13 +137,15 @@ for _, row in df.iterrows():
 
         ict_nodes[i] = n3
 
-    # ICT内の組み合わせエッジ
+    # ICT内の利用関係
+    # 例：ICT_1 = iPad, ICT_2 = PowerPoint, 組み合わせ_2 = 1
+    #     iPad → PowerPoint
     for i, target_node in ict_nodes.items():
         start_indices = parse_start_indices(row.get(f"組み合わせ_{i}", ""))
 
         for start_i in start_indices:
             source_node = ict_nodes.get(start_i)
-            add_edge(edges, source_node, target_node, "relation", paper_id)
+            add_edge(edges, source_node, target_node, "ict_combination", paper_id)
 
     # ===== ICTの機能 =====
     function_nodes = {}
@@ -170,10 +170,9 @@ for _, row in df.iterrows():
         start_indices = parse_start_indices(row.get(f"ICTの機能_{i}_始点", ""))
         for start_i in start_indices:
             source_node = ict_nodes.get(start_i)
-            add_edge(edges, source_node, n3, "relation", paper_id)
+            add_edge(edges, source_node, n3, "ict_function", paper_id)
 
     # ===== 教育機会 =====
-    # 教育機会_*_1 は使用しない
     opportunity_nodes = {}
 
     for i in range(1, 30):
@@ -193,10 +192,9 @@ for _, row in df.iterrows():
         start_indices = parse_start_indices(row.get(f"教育機会_{i}_始点", ""))
         for start_i in start_indices:
             source_node = function_nodes.get(start_i)
-            add_edge(edges, source_node, n3, "relation", paper_id)
+            add_edge(edges, source_node, n3, "function_opportunity", paper_id)
 
     # ===== 教育効果 =====
-    # 教育効果_*_1 は使用しない
     effect_nodes = {}
 
     for i in range(1, 40):
@@ -216,22 +214,23 @@ for _, row in df.iterrows():
         start_indices = parse_start_indices(row.get(f"教育効果_{i}_始点", ""))
         for start_i in start_indices:
             source_node = opportunity_nodes.get(start_i)
-            add_edge(edges, source_node, n3, "relation", paper_id)
+            add_edge(edges, source_node, n3, "opportunity_effect", paper_id)
 
     # ===== 学年・単元 =====
+    # 第1層：学校種
+    # 第2層：学年
+    # 第3層：分野
+    # 第4層：具体的な学習内容
     school = clean(row.get("学校", ""))
     grade = clean(row.get("学年", ""))
-    field = clean(row.get("分野", row.get("領域", "")))
+    field = clean(row.get("分野", ""))
     unit = get_unit_label(row)
 
     n1 = add_node(nodes, school, "UNIT", 1)
 
-    if school and grade:
-        grade_label = f"{school}{grade}年"
-    else:
-        grade_label = grade
-
+    grade_label = make_grade_label(school, grade)
     n2 = add_node(nodes, grade_label, "UNIT", 2, n1)
+
     n3 = add_node(nodes, field, "UNIT", 3, n2)
     n4 = add_node(nodes, unit, "UNIT", 4, n3)
 
@@ -239,9 +238,8 @@ for _, row in df.iterrows():
     add_edge(edges, n2, n3, "hierarchy")
     add_edge(edges, n3, n4, "hierarchy")
 
-    # 教育効果 → 学年・単元
     for effect_node in effect_nodes.values():
-        add_edge(edges, effect_node, n4, "relation", paper_id)
+        add_edge(edges, effect_node, n4, "effect_unit", paper_id)
 
 
 # ===== DataFrame化 =====

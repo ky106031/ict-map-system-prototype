@@ -10,6 +10,14 @@ const LAYERS = [
   { id: "LAYER_UNIT", label: "学年・単元", layer: "UNIT", x: 1340, y: 200, firstLevel: "1", maxLevel: 4 },
 ];
 
+const RELATION_EDGE_TYPES = [
+  "ict_combination",
+  "ict_function",
+  "function_opportunity",
+  "opportunity_effect",
+  "effect_unit",
+];
+
 const LAYER_EDGES = [
   ["LAYER_ICT", "LAYER_FUNCTION"],
   ["LAYER_FUNCTION", "LAYER_OPPORTUNITY"],
@@ -108,6 +116,10 @@ function App() {
       .filter(Boolean);
   };
 
+  const getRelationEdges = () => {
+    return edges.filter((e) => RELATION_EDGE_TYPES.includes(e.edge_type));
+  };
+
   const getDescendantNodeIds = (nodeId) => {
     const result = new Set([nodeId]);
 
@@ -145,7 +157,7 @@ function App() {
   };
 
   const getRelatedSubgraph = (startNodeId) => {
-    const relationEdges = edges.filter((e) => e.edge_type === "relation");
+    const relationEdges = getRelationEdges();
     const startNode = nodes.find((n) => n.node_id === startNodeId);
     const selectedLayer = startNode?.layer;
 
@@ -186,6 +198,11 @@ function App() {
     const filteredNodeIds = Array.from(nodeSet).filter((nodeId) => {
       const node = nodes.find((n) => n.node_id === nodeId);
       if (!node) return false;
+
+      if (selectedLayer === "ICT") {
+        return true;
+      }
+
       return !(node.layer === selectedLayer && node.node_id !== startNodeId);
     });
 
@@ -207,7 +224,7 @@ function App() {
       return getRelatedSubgraph(conditionNodeIds[0]);
     }
 
-    const relationEdges = edges.filter((e) => e.edge_type === "relation");
+    const relationEdges = getRelationEdges();
 
     const conditionTargetSets = conditionNodeIds.map(
       (conditionNodeId) => new Set(getDescendantNodeIds(conditionNodeId))
@@ -319,7 +336,7 @@ function App() {
   };
 
   const buildAllGraphElements = () => {
-    const relationEdges = edges.filter((e) => e.edge_type === "relation");
+    const relationEdges = getRelationEdges();
     const elements = [];
 
     const grouped = {};
